@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arges-qa"
+version = "0.1.0"
+description = "Arges - the tireless hand in the browser: autonomous, self-healing, cost-aware UI testing."
+requires-python = ">=3.11"
+dependencies = ["playwright", "fastapi", "uvicorn[standard]", "pydantic>=2", "openai", "typer", "jinja2",
+                "rapidfuzz", "mcp[cli]", "rich", "httpx"]
+
+[project.scripts]
+arges = "arges.cli:app"
+
+[tool.setuptools.packages.find]
+include = ["arges*", "demo_app*"]
+
+[tool.setuptools.package-data]
+arges = ["browser/*.js", "report/templates/*", "report/static/*"]
+demo_app = ["templates/*", "static/*", "context/*", "context/releases/*"]
+
+[tool.pytest.ini_options]
+# `pytest` runs the unit suite only. exam/test_smoke.py is an end-to-end smoke test (real server +
+# browser) that holds Playwright's event loop for its session, which breaks asyncio-based unit tests
+# collected after it. Run it on its own: `pytest exam/test_smoke.py`.
+testpaths = ["tests"]

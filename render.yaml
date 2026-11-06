@@ -1,0 +1,24 @@
+# Render Blueprint: one free Docker web service running SkyOps A + B and the Arges console.
+# Deploy: https://render.com/deploy?repo=https://github.com/Abdulbasith0512/arges
+# Verified locally under a 512 MB memory cap (Render free tier): boot + bootstrap + a full
+# hidden-bug run with a real Chromium stay well inside it.
+services:
+  - type: web
+    name: arges-live
+    runtime: docker
+    plan: free
+    dockerfilePath: ./deploy/hf_space/Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: "7860"
+      - key: ARGES_REPO_URL
+        value: https://github.com/Abdulbasith0512/arges
+      # Optional LLM keys (free tiers). Scenarios marked "0 LLM calls" work without them.
+      - key: JEV_API
+        sync: false
+      - key: JEV2_API
+        sync: false
+      - key: GROK_API
+        sync: false

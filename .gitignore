@@ -1,0 +1,27 @@
+# secrets
+.env
+.env.*
+!.env.example
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# runtime artifacts
+.arges*/
+!.arges.example/
+*.log
+node_modules/
+.logs/
+.arges*/auth/
+# per-run scratch artefacts (evidence summaries live in site_data/ and runs/live/)
+.arges*/runs/
+sandbox/out/
+*.zip
+*.pdf
+.logs-*
+.qoder/
+arges/web/static/_review/
+runs/live/*/raw/
+runs/live/**/*.mp4
+runs/live/*.mp4
