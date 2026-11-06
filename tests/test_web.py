@@ -357,6 +357,16 @@ def test_pages_render(client: TestClient) -> None:
         assert response.headers["content-type"].startswith("text/html")
 
 
+def test_deployment_metadata_is_escaped(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ARGES_REPO_URL", 'https://example.test/?q="><script>alert(1)</script>')
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;" in response.text
+    assert '<script>alert(1)</script>' not in response.text
+
+
 def test_healthz_reports_live_process(client: TestClient) -> None:
     response = client.get("/healthz")
     assert response.status_code == 200
