@@ -126,7 +126,8 @@ def client(runner: JobRunner) -> Iterator[TestClient]:
 # -------------------------------------------------------------------------------------- recorded + live
 
 def test_overview_shape(client: TestClient) -> None:
-    body = client.get("/api/overview").json()
+    response = client.get("/api/overview")
+    body = response.json()
     assert set(body) == {"generated_at", "recorded", "live"}
     assert set(body["recorded"]) == set(RECORDED)
     assert set(body["live"]) == {"runs_total", "last_run_at", "llm_calls_today", "tiers"}
@@ -135,6 +136,7 @@ def test_overview_shape(client: TestClient) -> None:
     assert body["live"]["tiers"] == {"0": 2}
     assert isinstance(body["live"]["llm_calls_today"], int)
     assert "T" in body["generated_at"]
+    assert response.headers["Cache-Control"] == "no-store"
 
 
 def test_overview_serves_the_exported_site_data(client: TestClient) -> None:
