@@ -1,0 +1,417 @@
+"""Arges CLI: the tireless hand in the browser.
+
+  arges init --url http://localhost:8000 --context demo_app/context --user pilot@skyops.io --password flysafe123
+  arges explore            # deterministic crawl -> app atlas (0 LLM calls)
+  arges generate           # atlas + product context -> regression suite (1-3 LLM calls)
+  arges author suite.json  # hand-written semantic steps -> baselined tests (0 LLM calls)
+  arges run --label "after deploy 1.2"
+  arges dashboard          # Mission Control UI
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import sys
+from pathlib import Path
+from typing import Optional
+
+import typer
+from rich.console import Console
+from rich.table import Table
+
+from arges.config import load_settings
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+app = typer.Typer(add_completion=False, help="Arges - autonomous, self-healing, cost-aware UI testing.")
+console = Console()
+HOME = typer.Option(".arges", "--home", help="Memory folder")
+
+COLORS = {"PASS": "green", "COSMETIC_DRIFT": "cyan", "INTENDED_CHANGE": "blue", "FEATURE_REMOVED": "bright_black",
+          "BUG": "bold red", "NEEDS_REVIEW": "yellow", "INFRA": "magenta"}
+TIER = {0: "replay", 1: "heal", 2: "reorder", 3: "llm-heal", 4: "replan", 5: "vision"}
+
+
+BANNER = r"""[bold cyan]
+     _    ____   ____ _   _ ____
+    / \  |  _ \ / ___| | | / ___|
+   / _ \ | |_) | |  _| | | \___ \
+  / ___ \|  _ <| |_| | |_| |___) |
+ /_/   \_\_| \_\\____|\___/|____/[/]  [dim]the tireless hand in the browser[/]
+"""
+
+
+@app.callback(invoke_without_command=True)
+def _main(ctx: typer.Context):
+    if ctx.invoked_subcommand is None:
+        console.print(BANNER)
+        console.print("  [bold]Quick start[/]\n"
+                      "  arges doctor                       check browser, app, LLM mesh\n"
+                      "  arges init --url URL --context DIR [--user U --password P]\n"
+                      "  arges explore && arges generate    build a suite for an app with no tests\n"
+                      "  arges run                          replay, self-heal, adapt, triage\n"
+                      "  arges dashboard                    Mission Control UI\n"
+                      "  arges demo                         the full on-stage showcase (SkyOps v1.0 -> v1.3)\n")
+
+
+@app.command()
+def models(home: str = HOME):
+    """Show the layered free-LLM mesh (layer 1 = JEV/OpenRouter, layer 2 = other free LLMs)."""
+    from arges.llm.providers import ORDER, PROVIDERS, api_key, available, ollama_models, split
+    s = load_settings(home)
+    avail = available()
+    table = Table("layer", "provider", "status", "free-tier rpm", "get a free key")
+    for name in ORDER:
+        p = PROVIDERS[name]
+        layer = "1 (primary)" if name == "openrouter" else ("offline" if name == "ollama" else "2 (main capacity)")
+        ok = name in avail
+        status = "[green]ready[/]" if ok else "[dim]not configured[/]"
+        if name == "ollama" and ok:
+            status = f"[green]ready[/] ({', '.join(ollama_models()[:2])})"
+        env = "/".join(p.key_envs) or "-"
+        table.add_row(layer, name, status, str(p.rpm), f"{env}  {p.signup}")
+    console.print(table)
+    for tier, chain in s.models.items():
+        console.print(f"[bold]{tier:<6}[/] " + " -> ".join(f"[cyan]{split(m)[0]}[/]:{split(m)[1]}" for m in chain))
+    console.print(f"LLM {'[green]enabled[/]' if s.llm_enabled else '[red]disabled[/]'}"
+                  "  (add keys to .env - they are never written anywhere else)")
+
+
+@app.command()
+def doctor(home: str = HOME):
+    """Preflight check: browser, app under test, LLM mesh, memory."""
+    import urllib.request
+    from arges.llm.providers import available
+    from arges.memory.store import Memory
+    s = load_settings(home)
+    console.print(BANNER)
+    rows = []
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as pw:
+            b = pw.chromium.launch()
+            b.close()
+        rows.append(("Chromium (Playwright)", True, "launches headless"))
+    except Exception as exc:
+        rows.append(("Chromium (Playwright)", False, f"{exc}"[:80] + "  -> python -m playwright install chromium"))
+    try:
+        code = urllib.request.urlopen(s.base_url, timeout=4).status
+        rows.append(("App under test", True, f"{s.base_url} -> HTTP {code}"))
+    except Exception as exc:
+        rows.append(("App under test", False, f"{s.base_url} unreachable ({type(exc).__name__})"))
+    prov = available()
+    rows.append(("LLM mesh", bool(prov), " > ".join(prov) if prov else "no keys: set JEV_API / GEMINI_API_KEY / GROQ_API_KEY"))
+    rows.append(("Product context", bool(s.product_context()), str(s.context_dir or "not set (arges init --context)")))
+    m = Memory(s.home)
+    rows.append(("Memory", True, f"{len(m.list_tests(None))} tests, {len(m.list_runs())} runs in {s.home}"))
+    table = Table("check", "", "detail")
+    for name, ok, detail in rows:
+        table.add_row(name, "[green]OK[/]" if ok else "[red]FAIL[/]", detail)
+    console.print(table)
+
+
+@app.command()
+def demo(fresh: bool = typer.Option(True, help="Start from an empty memory"), llm: bool = True,
+         pause: bool = typer.Option(False, help="Wait for Enter between acts (for live presenting)"),
+         home: str = HOME):
+    """On-stage showcase on SkyOps: baseline -> refactor -> redesign -> buggy release."""
+    import shutil
+    import urllib.request
+    from arges.runner.author import author as _author
+    from arges.runner.runner import run_suite
+    s = load_settings(home)
+    if not llm:
+        s.llm_enabled = False
+
+    def deploy(version: str) -> None:
+        from demo_app.deploy import deploy as _deploy
+        _deploy(version, s.base_url)
+
+    try:
+        urllib.request.urlopen(s.base_url, timeout=4)
+    except Exception:
+        console.print(f"[red]SkyOps is not running on {s.base_url}.[/] Start it: python -m demo_app.server --port 8000")
+        raise typer.Exit(1)
+    console.print(BANNER)
+    if fresh:
+        for sub in ("tests", "runs", "auth"):
+            shutil.rmtree(s.home / sub, ignore_errors=True)
+        (s.home / "knowledge.json").unlink(missing_ok=True)
+    acts = [
+        ("1.0", "Act 1 - Day zero: an app with no tests", "Arges authors a suite and freezes each step's contract."),
+        ("1.1", "Act 2 - Design-system refresh", "Every id renamed, classes hashed, test-ids gone, nav moved, labels reworded."),
+        ("1.2", "Act 3 - Mission planner v2", "Wizard reordered, new required field, Flight logs retired (all in the release notes)."),
+        ("1.3", "Act 4 - 'Performance improvements'", "Release notes say nothing else... but five regressions shipped."),
+    ]
+    board = []
+    for version, title, blurb in acts:
+        console.rule(f"[bold]{title}[/]  [dim]SkyOps v{version}[/]")
+        console.print(f"[dim]{blurb}[/]")
+        if pause:
+            input("  [Enter] to deploy ")
+        deploy(version)
+        s = load_settings(home)
+        s.build = version
+        if not llm:
+            s.llm_enabled = False
+        if version == "1.0":
+            specs = json.loads(Path("examples/skyops_suite.json").read_text(encoding="utf-8"))
+            asyncio.run(_author(s, specs, log=console.print))
+        report = asyncio.run(run_suite(s, label=f"demo v{version}", on_result=_print_result))
+        _summary(report)
+        board.append((version, report))
+    console.rule("[bold]Scoreboard[/]")
+    table = Table("release", "verdicts", "replayed", "healed", "LLM calls", "tokens avoided", "time")
+    for version, r in board:
+        t = r.totals
+        saved = max(0, t.naive_tokens_estimate - t.tokens_in - t.tokens_out)
+        table.add_row(f"v{version}", ", ".join(f"{k}:{v}" for k, v in t.verdicts.items()), str(t.replayed_steps),
+                      str(t.healed_steps), str(t.llm_calls), f"{saved:,}", f"{t.duration_ms / 1000:.0f}s")
+    console.print(table)
+    console.print("Open [bold]arges dashboard[/] for evidence, diffs and learned memory.")
+
+
+@app.command()
+def init(url: str = typer.Option(..., help="Base URL of the app under test"),
+         context: Optional[Path] = typer.Option(None, help="Folder with PRODUCT.md / CHANGELOG.md"),
+         user: Optional[str] = None, password: Optional[str] = None, headed: bool = False, home: str = HOME):
+    """Create .arges/config.json for an app."""
+    s = load_settings(home)
+    s.base_url = url.rstrip("/")
+    s.context_dir = context
+    if user:
+        s.credentials = {"user": user, "password": password or ""}
+    s.headless = not headed
+    s.save()
+    console.print(f"[green]Arges initialised[/] for {s.base_url} (memory: {s.home}, LLM: "
+                  f"{'on' if s.llm_enabled else 'off'})")
+
+
+@app.command()
+def author(spec_file: Path, home: str = HOME):
+    """Author tests from semantic step descriptions (JSON list) and record their baselines."""
+    from arges.runner.author import author as _author
+    s = load_settings(home)
+    specs = json.loads(spec_file.read_text(encoding="utf-8"))
+    tests = asyncio.run(_author(s, specs, log=console.print))
+    console.print(f"[green]{len(tests)} test(s) baselined[/]")
+
+
+@app.command()
+def explore(max_states: int = 25, max_actions: int = 90, home: str = HOME):
+    """Crawl the app deterministically and build the app atlas (no LLM)."""
+    from arges.explore.explorer import explore as _explore
+    s = load_settings(home)
+    atlas = asyncio.run(_explore(s, max_states=max_states, max_actions=max_actions, log=console.print))
+    console.print(f"[green]Atlas:[/] {len(atlas.get('states', {}))} states, "
+                  f"{len(atlas.get('transitions', []))} transitions")
+
+
+@app.command()
+def generate(max_tests: int = 8, home: str = HOME):
+    """Generate a regression suite from the atlas + product context."""
+    from arges.explore.generator import generate as _generate
+    s = load_settings(home)
+    tests = asyncio.run(_generate(s, max_tests=max_tests, log=console.print))
+    for t in tests:
+        console.print(f"  [cyan]{t.id}[/] {t.name} - {len(t.steps)} steps, {len(t.oracles)} oracles {t.tags}")
+
+
+@app.command()
+def run(label: str = "", test: Optional[list[str]] = typer.Option(None, "--test"), no_update: bool = False,
+        headed: bool = False, build: str = typer.Option("", help="Build/release label; plans are versioned per build"),
+        home: str = HOME):
+    """Run the suite: replay, self-heal, adapt, triage."""
+    from arges.runner.runner import run_suite
+    s = load_settings(home)
+    s.build = build
+    if headed:
+        s.headless = False
+
+    console.rule(f"[bold]Arges run[/] {label}")
+    report = asyncio.run(run_suite(s, test_ids=test, label=label, update=not no_update, on_result=_print_result))
+    _summary(report)
+
+
+def _print_result(r) -> None:
+    v = r.verdict
+    tiers = {}
+    for st in r.steps:
+        if st.tier is not None:
+            tiers[TIER.get(st.tier, st.tier)] = tiers.get(TIER.get(st.tier, st.tier), 0) + 1
+    calls = sum(1 for c in r.llm_calls if not c.cached)
+    extra = f" -> v{r.updated_to_version}" if r.updated_to_version else ""
+    console.print(f"[{COLORS.get(v.category, 'white')}]{v.category:<16}[/] {r.test_name:<42} "
+                  f"{tiers}  llm={calls}  {r.duration_ms / 1000:.1f}s{extra}")
+    if v.category not in ("PASS",):
+        console.print(f"      [dim]{v.rationale[:220]}[/]")
+    for q in v.changelog_refs[:2]:
+        console.print(f"      [blue]cites:[/] \"{q[:120]}\"")
+
+
+def _summary(report) -> None:
+    t = report.totals
+    table = Table(show_header=False, box=None)
+    steps = sum(t.tiers.values()) or 1
+    table.add_row("tests", str(t.tests), "verdicts", ", ".join(f"{k}:{v}" for k, v in t.verdicts.items()))
+    table.add_row("steps replayed (T0)", f"{t.replayed_steps}/{steps}", "self-healed", str(t.healed_steps))
+    table.add_row("LLM calls", f"{t.llm_calls} (+{t.llm_calls_cached} cached)", "tokens",
+                  f"{t.tokens_in + t.tokens_out:,}")
+    saved = max(0, t.naive_tokens_estimate - t.tokens_in - t.tokens_out)
+    table.add_row("cost", f"${t.cost_usd:.4f} (list ${t.list_cost_usd:.4f})", "tokens avoided vs LLM-per-step",
+                  f"{saved:,} ({saved / max(1, t.naive_tokens_estimate):.0%})")
+    table.add_row("duration", f"{t.duration_ms / 1000:.1f}s", "run", report.run_id)
+    console.print(table)
+    bugs = [r for r in report.results if r.bug_report]
+    for r in bugs:
+        console.print(f"\n[bold red]{r.bug_report}[/]")
+
+
+@app.command()
+def status(home: str = HOME):
+    """Show tests in memory and recent runs."""
+    from arges.memory.store import Memory
+    s = load_settings(home)
+    m = Memory(s.home)
+    table = Table("test", "status", "version", "steps", "oracles", "tags")
+    for t in m.list_tests(None):
+        table.add_row(t.id, t.status, str(t.version), str(len(t.steps)), str(len(t.oracles)), ",".join(t.tags))
+    console.print(table)
+    runs = m.list_runs()[-8:]
+    for r in runs:
+        console.print(f"{r.run_id}  {r.label:<24} {dict(r.totals.verdicts)}  llm={r.totals.llm_calls}")
+
+
+@app.command()
+def approve(run_id: str, test_id: str, as_: str = typer.Option("intended", "--as", help="intended | bug"),
+            home: str = HOME):
+    """Human-in-the-loop: resolve a NEEDS_REVIEW verdict; the decision is remembered."""
+    from arges.memory.store import Memory
+    from arges.models import TestChange, TestSpec, Verdict
+    from arges.triage.triage import all_observations, deviation_signature
+    s = load_settings(home)
+    m = Memory(s.home)
+    report = next(r for r in m.list_runs() if r.run_id == run_id)
+    res = next(r for r in report.results if r.test_id == test_id)
+    cat = "INTENDED_CHANGE" if as_.startswith("int") else "BUG"
+    v = Verdict(category=cat, confidence=1.0, decided_by="human", rationale=f"Human decision on run {run_id}",
+                action="test_updated" if cat == "INTENDED_CHANGE" else "bug_reported")
+    m.put_decision(deviation_signature(test_id, all_observations(res)), v)
+    proposal = s.home / "runs" / run_id / "proposals" / f"{test_id}.json"
+    if cat == "INTENDED_CHANGE" and proposal.exists():
+        spec = TestSpec.model_validate_json(proposal.read_text(encoding="utf-8"))
+        saved = m.save_test(spec, TestChange(version=spec.version + 1, kind="updated",
+                                             summary="Approved by a human reviewer", verdict_ref=run_id))
+        console.print(f"[blue]{test_id} updated to v{saved.version}[/]")
+    console.print(f"[green]Decision remembered:[/] {cat}")
+
+
+@app.command()
+def gauntlet(trials: int = 6, bugs: bool = True, llm: bool = typer.Option(False, help="Allow LLM heals/triage "
+              "(off by default: shows what the deterministic core alone achieves)"), home: str = HOME):
+    """Robustness benchmark: random UI mutations (must heal, no false bugs) + injected bugs (must catch)."""
+    from arges.chaos.gauntlet import run_gauntlet
+    s = load_settings(home)
+    s.llm_enabled = s.llm_enabled and llm
+    asyncio.run(run_gauntlet(s, trials=trials, bugs=bugs, log=console.print))
+
+
+@app.command()
+def diff(baseline: str = typer.Option(..., help="URL of the known-good build"),
+         candidate: str = typer.Option(..., help="URL of the build under test"),
+         test: Optional[list[str]] = typer.Option(None, "--test"), llm: bool = False, home: str = HOME):
+    """Differential execution: same intents on two live builds -> REGRESSION / BEHAVIOR_CHANGE / UI_DRIFT."""
+    from arges.diff import run_diff
+    s = load_settings(home)
+    s.llm_enabled = s.llm_enabled and llm
+    out = asyncio.run(run_diff(s, baseline, candidate, test_ids=test, log=console.print))
+    colors = {"REGRESSION": "bold red", "BEHAVIOR_CHANGE": "yellow", "LIKELY_INTENDED": "blue",
+              "UI_DRIFT": "cyan", "NO_CHANGE": "green", "BASELINE_BROKEN": "magenta", "JOURNEY_GONE": "bright_black"}
+    table = Table("test", "delta", "evidence")
+    for r in out["tests"]:
+        table.add_row(r["name"], f"[{colors.get(r['class'], 'white')}]{r['class']}[/]", r["why"][:150])
+    console.print(table)
+    console.print(f"summary: {out['summary']}  (saved to {s.home}/diff.json)")
+
+
+@app.command()
+def dashboard(port: int = 8765, home: str = HOME):
+    """Serve the Mission Control dashboard."""
+    import uvicorn
+    from arges.report.dashboard import create_app
+    s = load_settings(home)
+    console.print(f"Mission Control on http://localhost:{port}")
+    uvicorn.run(create_app(s.home), host="127.0.0.1", port=port, log_level="warning")
+
+
+@app.command()
+def export(out: Path = Path("playwright-tests"), home: str = HOME):
+    """Export the suite as standard Playwright Test files."""
+    from arges.export.playwright_export import export_all
+    s = load_settings(home)
+    export_all(s.home, out, s.base_url) if export_all.__code__.co_argcount >= 3 else export_all(s.home, out)
+    console.print(f"[green]Exported to {out}[/]")
+
+
+@app.command()
+def mcp(home: str = HOME):
+    """Serve Arges as an MCP server (stdio) for coding agents."""
+    from arges.mcp_server import serve
+    serve(home)
+
+
+@app.command()
+def boundary(test: str = typer.Option(..., "--test", help="Existing test whose rule input gets edge cases"),
+             home: str = HOME):
+    """Attack one test's business rules at their boundaries (1 LLM call)."""
+    from arges.explore.boundary import generate_boundary_tests
+    s = load_settings(home)
+    try:
+        tests = asyncio.run(generate_boundary_tests(s, test, log=console.print))
+    except LookupError as exc:
+        console.print(f"[red]{exc}[/]")
+        raise typer.Exit(1)
+    table = Table("test", "rule", "expect", "value", "steps", "oracles")
+    for t in tests:
+        rule = next((o.rule_ref or "?" for o in t.oracles if o.rule_ref), "-")
+        expect = "accept" if "-accept-" in t.id else "reject"
+        table.add_row(t.id, rule, expect, t.id.rsplit("-", 1)[-1],
+                      str(len(t.steps)), ", ".join(o.kind for o in t.oracles))
+    console.print(table)
+    console.print(f"[green]{len(tests)} boundary test(s) baselined in {s.home}[/]")
+
+
+if __name__ == "__main__":
+    app()
+
+
+live_app = typer.Typer(help="Arges Live: test a running live-ops cockpit against ground truth.")
+app.add_typer(live_app, name="live")
+
+
+@live_app.command("run")
+def live_run(only: Optional[list[str]] = typer.Option(None, "--only", help="Scenario id prefix, e.g. S1"),
+             headless: bool = typer.Option(False, help="Run without a visible browser (recordings still made)"),
+             out: Path = typer.Option(Path("runs/live"), help="Evidence folder")):
+    """Run the live scenarios: real browser, ground truth, narrated recordings, grouped findings."""
+    from arges.live.engine import run_scenarios
+    from arges.live.scenarios import SCENARIOS
+    chosen = [s for s in SCENARIOS if not only or any(s.id.startswith(o) for o in only)]
+    console.rule(f"[bold]Arges Live[/] {len(chosen)} scenario(s)")
+    results = asyncio.run(run_scenarios(chosen, out, headed=not headless, log=console.print))
+    table = Table("scenario", "level", "verdict", "finding", "video")
+    for r in results:
+        color = {"BUG": "bold red", "PASS": "green"}.get(r.verdict, "yellow")
+        table.add_row(r.id, r.level, f"[{color}]{r.verdict}[/]", r.findings[0].title if r.findings else "-",
+                      (r.videos or ["-"])[0])
+    console.print(table)
+
+
+@live_app.command("report")
+def live_report(runs: Path = typer.Option(Path("runs/live"), help="Evidence folder with */result.json"),
+                out: Path = typer.Option(Path("EVALUATION.md"), help="Markdown document to write")):
+    """Build the evaluation document (EVALUATION.md + runs/live/index.html) from stored results."""
+    from arges.live.report import build_report
+    path = build_report(runs, out)
+    console.print(f"[green]Wrote {path} and {runs / 'index.html'}[/]")
