@@ -362,6 +362,7 @@ def test_healthz_reports_live_process(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.json()["ok"] is True
     assert "T" in response.json()["generated_at"]
+    assert response.headers["Cache-Control"] == "no-store"
 
 
 def test_security_headers_and_no_listing(client: TestClient) -> None:

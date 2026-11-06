@@ -159,6 +159,8 @@ def create_app() -> FastAPI:
         response = await call_next(request)
         for header, value in SECURITY_HEADERS.items():
             response.headers.setdefault(header, value)
+        if request.url.path in {"/healthz", "/readyz"}:
+            response.headers.setdefault("Cache-Control", "no-store")
         # No client address is written to the log: the only place one lives is the in-memory
         # rate-limit map, which is pruned after the window (see JobRunner._prune_rate).
         print(f"{request.method} {request.url.path} -> {response.status_code} "
