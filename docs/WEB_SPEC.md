@@ -13,6 +13,8 @@
 (css/js/svg). Routes: `/` → index.html, `/live` → live.html.
 
 ## API (JSON unless noted)
+- `GET /healthz` -> liveness response; confirms the web process is running.
+- `GET /readyz` -> readiness response; returns SkyOps state or `503` while SkyOps is unavailable.
 - `GET /api/overview` → `{generated_at, recorded: {gauntlet, ten_runs, saucedemo, exam_before, exam_after, diff},
   live: {runs_total, last_run_at, llm_calls_today, tiers: {"0":n,"1":n,...}}}` — `recorded` comes from committed
   `site_data/*.json` (exported by `scripts/export_site_data.py` from real local artifacts, each with `measured_at` and
