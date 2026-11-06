@@ -181,6 +181,7 @@ def test_shot_served(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.content == JPEG
     assert response.headers["content-type"].startswith("image/jpeg")
+    assert response.headers["Cache-Control"] == "no-store"
 
 
 @pytest.mark.parametrize("name", [
