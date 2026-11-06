@@ -1,0 +1,43 @@
+# Secrets — never copy into the image
+.env
+.env.*
+!.env.example
+
+# Python virtual environment (image builds its own)
+.venv/
+
+# Byte-compiled Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Arges runtime state — each container run starts fresh
+.arges/
+.arges_*/
+.arges-*/
+
+# Git metadata
+.git/
+.gitignore
+
+# Test / cache artefacts
+.pytest_cache/
+*.log
+node_modules/
+
+# Sandbox output directory (mounted at runtime)
+sandbox/out/
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# heavy local artefacts
+*.pdf
+*.zip
+runs/
+.qoder/
+arges/web/static/_review/
