@@ -37,6 +37,12 @@ hourly LLM caps (JEV 15 / JEV2 15 / Groq 60).
 Set the LLM keys as Space **Variables/Secrets** (`JEV_API`, `JEV2_API`, `GROK_API`) — scenarios
 that need no LLM work without them.
 
+## Other deployment options
+
+For a free deployment without Hugging Face Docker Space billing, use the repository's
+`render.yaml` Blueprint on Render. The web service exposes `/healthz` for liveness and `/readyz`
+for readiness; `/readyz` returns `503` until the SkyOps app is reachable.
+
 ## Files in this Space
 
 - `Dockerfile` (root) ← `deploy/hf_space/Dockerfile`
