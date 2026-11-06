@@ -241,9 +241,11 @@ def test_post_job_returns_ticket(client: TestClient) -> None:
     ticket = response.json()
     assert set(ticket) == {"job_id", "queue_position"}
     assert ticket["queue_position"] == 0
-    status = client.get(f"/api/jobs/{ticket['job_id']}").json()
+    status_response = client.get(f"/api/jobs/{ticket['job_id']}")
+    status = status_response.json()
     assert status["scenario"] == "cli"
     assert status["state"] in ("queued", "running", "done")
+    assert status_response.headers["Cache-Control"] == "no-store"
     assert client.get("/api/jobs/does-not-exist").status_code == 404
 
 
