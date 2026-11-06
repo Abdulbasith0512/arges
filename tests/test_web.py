@@ -371,3 +371,9 @@ def test_skyops_state_is_503_when_unreachable(client: TestClient) -> None:
     response = client.get("/api/skyops/state")
     assert response.status_code == 503
     assert "SkyOps" in response.json()["detail"]
+
+
+def test_readyz_is_503_when_skyops_is_unreachable(client: TestClient) -> None:
+    response = client.get("/readyz")
+    assert response.status_code == 503
+    assert "SkyOps is not ready" in response.json()["detail"]

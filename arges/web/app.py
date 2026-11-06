@@ -178,6 +178,19 @@ def create_app() -> FastAPI:
     def healthz() -> dict[str, Any]:
         return {"ok": True, "generated_at": now_iso()}
 
+    @app.get("/readyz")
+    async def readyz(request: Request) -> dict[str, Any]:
+        """Report whether the console can reach the SkyOps app under test."""
+        runner = get_runner(request)
+        try:
+            state = await asyncio.to_thread(runner.skyops_state)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"SkyOps is not ready ({type(exc).__name__})",
+            )
+        return {"ok": True, "generated_at": now_iso(), "skyops": state}
+
     # ------------------------------------------------------------------ api
     @app.get("/api/overview")
     def api_overview(request: Request) -> dict[str, Any]:
