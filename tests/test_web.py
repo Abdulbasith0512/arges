@@ -193,7 +193,10 @@ def test_shot_path_traversal_is_blocked(client: TestClient, name: str) -> None:
 
 
 def test_shot_unknown_run(client: TestClient) -> None:
-    assert client.get("/api/runs/20990101-000000-abcd/shots/login_01.jpg").status_code == 404
+    response = client.get("/api/runs/20990101-000000-abcd/shots/login_01.jpg")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "run not found"}
 
 
 # -------------------------------------------------------------------------------------- scenarios + llm
