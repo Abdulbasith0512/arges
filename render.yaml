@@ -9,7 +9,7 @@ services:
     plan: free
     dockerfilePath: ./deploy/hf_space/Dockerfile
     dockerContext: .
-    healthCheckPath: /healthz
+    healthCheckPath: /readyz
     envVars:
       - key: PORT
         value: "7860"

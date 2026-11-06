@@ -40,6 +40,7 @@ VM_IP=<public-ip> ENV_FILE=/path/to/keys.env ./deploy/push.sh
 ```
 
 Console: `https://arges.<IP>.sslip.io` · SkyOps: `https://skyops.<IP>.sslip.io`
+Readiness: `https://arges.<IP>.sslip.io/readyz`
 (`/__admin*` returns 403 publicly; the web container talks to it over the compose network).
 
 ## Local dry run (no VM)
