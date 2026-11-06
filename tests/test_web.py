@@ -157,6 +157,7 @@ def test_runs_latest_and_detail(client: TestClient) -> None:
     latest = client.get("/api/runs/latest")
     assert latest.status_code == 200
     assert latest.json()["run_id"] == RUN_ID
+    assert latest.headers["Cache-Control"] == "no-store"
     detail = client.get(f"/api/runs/{RUN_ID}")
     assert detail.status_code == 200
     assert detail.json()["totals"]["verdicts"] == {"PASS": 1, "BUG": 1}
