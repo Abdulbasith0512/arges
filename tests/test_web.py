@@ -357,6 +357,15 @@ def test_pages_render(client: TestClient) -> None:
         assert response.headers["content-type"].startswith("text/html")
 
 
+def test_default_repository_link_is_present(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ARGES_REPO_URL", raising=False)
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'content="https://huggingface.co/spaces/ansh0505/arges"' in response.text
+
+
 def test_deployment_metadata_is_escaped(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ARGES_REPO_URL", 'https://example.test/?q="><script>alert(1)</script>')
     monkeypatch.setenv("ARGES_SKYOPS_PUBLIC_URL", 'https://skyops.test/?q="><script>alert(2)</script>')
