@@ -234,7 +234,10 @@ def test_post_job_returns_ticket(client: TestClient) -> None:
 
 
 def test_post_job_rejects_unknown_scenario(client: TestClient) -> None:
-    assert client.post("/api/jobs", json={"scenario": "rm -rf /"}).status_code == 400
+    response = client.post("/api/jobs", json={"scenario": "rm -rf /"})
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "unknown scenario"}
     assert client.post("/api/jobs", json={}).status_code == 422
 
 
