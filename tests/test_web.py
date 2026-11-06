@@ -357,6 +357,13 @@ def test_pages_render(client: TestClient) -> None:
         assert response.headers["content-type"].startswith("text/html")
 
 
+def test_healthz_reports_live_process(client: TestClient) -> None:
+    response = client.get("/healthz")
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+    assert "T" in response.json()["generated_at"]
+
+
 def test_security_headers_and_no_listing(client: TestClient) -> None:
     headers = client.get("/api/overview").headers
     csp = headers["Content-Security-Policy"]
