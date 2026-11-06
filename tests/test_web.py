@@ -238,6 +238,7 @@ def test_llm_caps_never_leak_keys(client: TestClient) -> None:
 def test_post_job_returns_ticket(client: TestClient) -> None:
     response = client.post("/api/jobs", json={"scenario": "cli"})
     assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "no-store"
     ticket = response.json()
     assert set(ticket) == {"job_id", "queue_position"}
     assert ticket["queue_position"] == 0
