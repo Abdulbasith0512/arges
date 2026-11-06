@@ -246,7 +246,9 @@ def test_post_job_returns_ticket(client: TestClient) -> None:
     assert status["scenario"] == "cli"
     assert status["state"] in ("queued", "running", "done")
     assert status_response.headers["Cache-Control"] == "no-store"
-    assert client.get("/api/jobs/does-not-exist").status_code == 404
+    missing = client.get("/api/jobs/does-not-exist")
+    assert missing.status_code == 404
+    assert missing.headers["Cache-Control"] == "no-store"
 
 
 def test_post_job_rejects_unknown_scenario(client: TestClient) -> None:
