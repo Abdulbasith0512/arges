@@ -107,6 +107,8 @@ def _read_stream(client: TestClient, job_id: str) -> tuple[str, Any]:
     with client.stream("GET", f"/api/jobs/{job_id}/events") as response:
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/event-stream")
+        assert response.headers["Cache-Control"] == "no-cache, no-store, no-transform"
+        assert response.headers["X-Accel-Buffering"] == "no"
         return "".join(response.iter_text())
 
 
