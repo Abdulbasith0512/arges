@@ -216,7 +216,8 @@ def test_scenarios_are_a_whitelist(client: TestClient) -> None:
 
 
 def test_llm_caps_never_leak_keys(client: TestClient) -> None:
-    body = client.get("/api/llm").json()
+    response = client.get("/api/llm")
+    body = response.json()
     assert [p["name"] for p in body] == ["JEV", "JEV2", "Groq"]
     assert [p["cap_per_hour"] for p in body] == [15, 15, 60]
     for provider in body:
@@ -224,6 +225,7 @@ def test_llm_caps_never_leak_keys(client: TestClient) -> None:
         assert isinstance(provider["available"], bool)
         assert provider["exhausted"] is False
     assert "sk-" not in json.dumps(body)
+    assert response.headers["Cache-Control"] == "no-store"
 
 
 # -------------------------------------------------------------------------------------- jobs + guardrails
