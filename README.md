@@ -252,6 +252,13 @@ answers BUG / INTENDED_CHANGE with evidence. That closes the software-factory lo
 | **Any VM** | `deploy/docker-compose.yml` + Caddy (auto-TLS) | See [`deploy/README.md`](deploy/README.md); `provision_azure.sh` for Azure |
 | **Local** | `docker build -f deploy/hf_space/Dockerfile -t arges . && docker run -p 7860:7860 arges` | Console on http://localhost:7860 |
 
+### Render quick start
+
+1. Push this repository to GitHub and open the **Deploy to Render** link above.
+2. Select the repository and apply the Blueprint from `render.yaml`.
+3. Wait for `/readyz` to become healthy, then open `/live` on the generated service URL.
+4. Start with the `replay` scenario; it exercises the real SkyOps app without LLM keys.
+
 LLM keys (`JEV_API`, `JEV2_API`, `GROK_API`) are optional environment variables. Every scenario marked
 "0 LLM calls" works without them. Without keys, ambiguous behaviour changes are reported as `NEEDS_REVIEW`
 instead of being judged.
