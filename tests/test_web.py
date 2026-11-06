@@ -385,6 +385,7 @@ def test_readyz_is_503_when_skyops_is_unreachable(client: TestClient) -> None:
     response = client.get("/readyz")
     assert response.status_code == 503
     assert "SkyOps is not ready" in response.json()["detail"]
+    assert response.headers["Cache-Control"] == "no-store"
 
 
 def test_readyz_returns_skyops_state(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -397,3 +398,4 @@ def test_readyz_returns_skyops_state(client: TestClient, monkeypatch: pytest.Mon
     assert response.json()["ok"] is True
     assert response.json()["skyops"] == expected
     assert "T" in response.json()["generated_at"]
+    assert response.headers["Cache-Control"] == "no-store"
