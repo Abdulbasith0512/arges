@@ -251,6 +251,12 @@ def test_post_job_validates_scenario_length(client: TestClient, payload: dict[st
     assert response.status_code == 422
 
 
+def test_post_job_rejects_non_object_payload(client: TestClient) -> None:
+    response = client.post("/api/jobs", json=["cli"])
+
+    assert response.status_code == 422
+
+
 def test_per_ip_rate_limit(client: TestClient) -> None:
     assert client.post("/api/jobs", json={"scenario": "cli"}).status_code == 200
     other = client.post("/api/jobs", json={"scenario": "replay"},
