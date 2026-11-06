@@ -204,12 +204,14 @@ def test_shot_unknown_run(client: TestClient) -> None:
 # -------------------------------------------------------------------------------------- scenarios + llm
 
 def test_scenarios_are_a_whitelist(client: TestClient) -> None:
-    body = client.get("/api/scenarios").json()
+    response = client.get("/api/scenarios")
+    body = response.json()
     assert [s["id"] for s in body] == list(SCENARIOS)
     for entry in body:
         assert set(entry) == {"id", "title", "description", "expected_cost", "uses_llm"}
         assert isinstance(entry["uses_llm"], bool)
         assert entry["expected_cost"] and entry["title"]
+    assert response.headers["Cache-Control"] == "no-store"
     assert {s["id"] for s in body if s["uses_llm"]} == {"generate", "mcp"}
 
 
