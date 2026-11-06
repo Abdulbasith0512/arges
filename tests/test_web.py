@@ -407,6 +407,16 @@ def test_skyops_state_is_503_when_unreachable(client: TestClient) -> None:
     assert "SkyOps" in response.json()["detail"]
 
 
+def test_skyops_state_proxies_healthy_state(client: TestClient) -> None:
+    expected = {"version": "1.2", "bugs": ["stale-map"], "chaos": False}
+    client.app.state.runner.skyops_state = lambda: expected
+
+    response = client.get("/api/skyops/state")
+
+    assert response.status_code == 200
+    assert response.json() == expected
+
+
 def test_readyz_is_503_when_skyops_is_unreachable(client: TestClient) -> None:
     response = client.get("/readyz")
     assert response.status_code == 503
