@@ -7,7 +7,7 @@ name = "arges-qa"
 version = "0.1.0"
 description = "Arges - the tireless hand in the browser: autonomous, self-healing, cost-aware UI testing."
 requires-python = ">=3.11"
-dependencies = ["playwright", "fastapi", "uvicorn[standard]", "pydantic>=2", "openai", "typer", "jinja2",
+dependencies = ["playwright==1.63.0", "fastapi", "uvicorn[standard]", "pydantic>=2", "openai", "typer", "jinja2",
                 "rapidfuzz", "mcp[cli]", "rich", "httpx"]
 
 [project.scripts]
