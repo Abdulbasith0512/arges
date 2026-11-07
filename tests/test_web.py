@@ -392,6 +392,13 @@ def test_pages_render(client: TestClient) -> None:
         assert response.headers["content-type"].startswith("text/html")
 
 
+def test_live_html_alias_redirects_to_live_page(client: TestClient) -> None:
+    response = client.get("/live.html", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/live"
+
+
 def test_default_repository_link_is_present(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ARGES_REPO_URL", raising=False)
 

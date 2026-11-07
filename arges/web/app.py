@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Optional
 
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -175,6 +175,10 @@ def create_app() -> FastAPI:
     @app.get("/live", response_class=HTMLResponse)
     def live_page() -> Response:
         return _page("live.html", "live console")
+
+    @app.get("/live.html", include_in_schema=False)
+    def live_html_alias() -> RedirectResponse:
+        return RedirectResponse("/live")
 
     @app.get("/healthz")
     def healthz() -> dict[str, Any]:
