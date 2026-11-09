@@ -7,7 +7,7 @@ and costs almost nothing to run.** Built solo for the AHC SWE Hackathon, *"The T
 
 | | |
 |---|---|
-| 🌐 **Showcase site** (write-ups, recorded evidence, videos) | https://Abdulbasith0512.github.io/arges-live/ |
+| 🌐 **Showcase site** (write-ups, recorded evidence, videos) | https://arges-sr21.onrender.com |
 | 🖥️ **Live console** (drive a real browser against the demo app) | Render free tier. One-click: [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Abdulbasith0512/arges) |
 | 🎬 **Scenario videos** | [Level 1](https://Abdulbasith0512.github.io/arges-live/level1.html) · [Level 2](https://Abdulbasith0512.github.io/arges-live/level2.html) |
 | 🧱 **Stack** | Python 3.11 · Playwright 1.63.0 (Chromium, CDP) · FastAPI + SSE · Typer CLI · MCP server · OpenCV + imagehash · rapidfuzz · pydantic v2 · Docker / Caddy |
